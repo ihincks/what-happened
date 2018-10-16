@@ -9,6 +9,7 @@ import textwrap
 import yaml
 import argparse
 import functools
+import dateutil.parser
 
 # ======================================================================================
 # CONSTANTS
@@ -16,8 +17,9 @@ import functools
 
 THIS_FOLDER = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CONFIG = os.path.join(THIS_FOLDER, "config.yaml")
+GIT_TIME_FORMATTER = "%a %b %d %H:%M:%S %Y"
 SEP1 = ":AUXOouLEU9e387:"
-SEP2 = ":XDoHXS3OETHHU:"
+SEP2 = ":XDoH4XS3OETHHU:"
 
 # ======================================================================================
 # ARGUMENTS
@@ -55,6 +57,34 @@ parser.add_argument(
     default=False,
     help="Whether to reverse the date sort.",
 )
+parser.add_argument(
+    "-df",
+    "--date-format",
+    dest="date_format",
+    action="store",
+    help="Date format string, in the notation of the python datetime package.",
+    default="%Y-%m-%d",
+)
+parser.add_argument(
+    "-s",
+    "--since",
+    dest="since",
+    action="store",
+    help=(
+        "Specifier for the first log to report. Either something dateutil.parser.parse "
+        'can handle, like "January 12, 2017", or a valid git --since argument, '
+        "like 2.months.ago (which is the default value)."
+    ),
+    default="2.months.ago",
+)
+parser.add_argument(
+    "-b",
+    "--before",
+    dest="before",
+    action="store",
+    help="Specifier for the last log to report, see --since for formats",
+    default=None,
+)
 
 # ======================================================================================
 # FUNCTIONS
@@ -81,8 +111,18 @@ def in_folder(fn):
     return wrapped
 
 
+def make_git_date(input):
+    """
+    Tries to make a date git understands from the input string.
+    """
+    try:
+        return dateutil.parser.parse(input).isoformat()
+    except:
+        return input
+
+
 @in_folder
-def get_repo_logs(repo_path, user=None, n_months=3, name=""):
+def get_repo_logs(repo_path, user=None, since=None, before=None):
 
     pretty_keys = ["date", "user", "desc", "subject", "body"]
     pretty_format = SEP2.join(["%ad", "%an", "%D", "%s", "%b"]) + SEP1
@@ -91,11 +131,14 @@ def get_repo_logs(repo_path, user=None, n_months=3, name=""):
         "git",
         "log",
         "--pretty=format:{}".format(pretty_format),
-        "--date=short",
+        "--date=local",
         "--reverse",
         "--all",
-        "--since={}.months.ago".format(n_months),
     ]
+    if since:
+        args.append("--since={}".format(make_git_date(since)))
+    if before:
+        args.append("--before={}".format(make_git_date(before)))
     if user:
         args.append("--author={}".format(user))
     out = subprocess.check_output(args).decode("utf-8")
@@ -138,6 +181,20 @@ def get_arg(name, args, config):
     )
 
 
+def str_to_ms(input):
+    """
+    Turns the git-formatted input string into ms since the epoch.
+    """
+    return datetime.datetime.strptime(input, GIT_TIME_FORMATTER).timestamp()
+
+
+def format_date(input, date_format):
+    """
+    Formats the git-formatted input string according to the date_format
+    """
+    return datetime.datetime.strptime(input, GIT_TIME_FORMATTER).strftime(date_format)
+
+
 # ======================================================================================
 # MAIN
 # ======================================================================================
@@ -160,31 +217,36 @@ if __name__ == "__main__":
     user = get_arg("user", args, config)
     width = int(get_arg("width", args, config))
     reverse = bool(get_arg("reverse", args, config))
+    date_format = get_arg("date_format", args, config)
+    since = get_arg("since", args, config)
+    before = get_arg("before", args, config)
 
-    subject_wrapper = textwrap.TextWrapper(width=width, fix_sentence_endings=True)
-    body_wrapper = textwrap.TextWrapper(width=width - 3, fix_sentence_endings=True)
-
+    # go and collect the logs for all repos
     logs = []
     max_lengths = defaultdict(int)
     for repo in repo_list:
         repo_dir = os.path.expanduser(repo)
         name = get_repo_name(repo_dir)
+        # fetch the logs for this particular repo
         new_logs = [
             log
-            for log in get_repo_logs(repo_dir, user=user)
+            for log in get_repo_logs(repo_dir, user=user, since=since, before=before)
             if "date" in log and len(log["date"]) > 0
         ]
+        # now we modify a few things in each log, and also is a good opportunity
+        # to look for max string lengths
         for log in new_logs:
             log["name"] = name
-            for key, val in log.items():
-                max_lengths[key] = max(max_lengths[key], len(val))
             log["body"] = log["body"]
+            log["ts"] = str_to_ms(log["date"])
+            log["date"] = format_date(log["date"], date_format)
+            for key, val in log.items():
+                if key is not "ts":
+                    max_lengths[key] = max(max_lengths[key], len(val))
         logs += new_logs
 
-    logs.sort(
-        key=lambda x: datetime.datetime.strptime(x["date"], r"%Y-%m-%d"),
-        reverse=reverse,
-    )
+    # sort by timestamp
+    logs.sort(key=lambda x: x["ts"], reverse=reverse)
 
     if len(logs) > 0:
         meta_template = [
@@ -200,6 +262,10 @@ if __name__ == "__main__":
         empty_log = {key: "" for key in logs[0]}
         body_template = " " * len(template.format(**empty_log)) + " {} {}"
 
+        subject_wrapper = textwrap.TextWrapper(width=width, fix_sentence_endings=True)
+        body_wrapper = textwrap.TextWrapper(width=width - 3, fix_sentence_endings=True)
+
+        # finally, the printing loop
         for log in logs:
             for idx, line in enumerate(subject_wrapper.wrap(log["subject"])):
                 if idx == 0:
