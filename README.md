@@ -12,9 +12,9 @@ repos:
   - /and/so/on
 ```
 
-Make the `whathappened` file executable (or alternatively run with `python whathappened`) and use
+Make the `whathappened` file executable and add it to your path, if you like (or alternatively run with `python whathappened`). Then run
 ```bash
-./whathappened
+whathappened
 ```
 
 which will print commit logs of all specified repos, ordered by commit date:
@@ -38,7 +38,7 @@ which will print commit logs of all specified repos, ordered by commit date:
 
 If `config.yaml` is located in a different folder than `whathappened`, specify its location with 
 ```bash
-./whathappened other/location/config.yaml
+whathappened other/location/config.yaml
 ```
 
 ## Command Line Arguments
@@ -47,19 +47,19 @@ Use `whathappened --help` to see command line arguments.
 For instance, we can control line wrapping with
 
 ```
-./whathappened --width 60
+whathappened --width 60
 ```
 
 or reverse the order with 
 
 ```
-./whathappened --reverse
+whathappened --reverse
 ```
 
 If we specify a user, then only commits from that author are shown, with the author column not printed:
 
 ```
-./whathappened --user Ian
+whathappened --user Ian
 ```
 
 ## YAML config file arguments
