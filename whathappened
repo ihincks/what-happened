@@ -47,6 +47,14 @@ parser.add_argument(
     help="Line wrap width of the subject and body of the logs.",
     default=60,
 )
+parser.add_argument(
+    "-r",
+    "--reverse",
+    dest="reverse",
+    action="store_true",
+    default=False,
+    help="Whether to reverse the date sort.",
+)
 
 # ======================================================================================
 # FUNCTIONS
@@ -151,6 +159,7 @@ if __name__ == "__main__":
     # command line overrides whatever's in config.yaml, though argparser stores defaults
     user = get_arg("user", args, config)
     width = int(get_arg("width", args, config))
+    reverse = bool(get_arg("reverse", args, config))
 
     subject_wrapper = textwrap.TextWrapper(width=width, fix_sentence_endings=True)
     body_wrapper = textwrap.TextWrapper(width=width - 3, fix_sentence_endings=True)
@@ -173,7 +182,8 @@ if __name__ == "__main__":
         logs += new_logs
 
     logs.sort(
-        key=lambda x: datetime.datetime.strptime(x["date"], r"%Y-%m-%d"), reverse=False
+        key=lambda x: datetime.datetime.strptime(x["date"], r"%Y-%m-%d"),
+        reverse=reverse,
     )
 
     if len(logs) > 0:
