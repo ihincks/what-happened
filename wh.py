@@ -167,18 +167,7 @@ if __name__ == "__main__":
             log["name"] = name
             for key, val in log.items():
                 max_lengths[key] = max(max_lengths[key], len(val))
-            log["body"] = (
-                log["body"]
-                .replace(".\r\n\r\n", ".", 500)
-                .replace("\r\n\r\n", ".", 500)
-                .replace("\t", "", 500)
-                .replace("\n", "", 500)
-                .replace("\r", "", 500)
-                .replace("    ", " ", 500)
-                .replace("   ", " ", 500)
-                .replace("  ", " ", 500)
-                .replace("* ", "")
-            )
+            log["body"] = log["body"]
         logs += new_logs
 
     logs.sort(
@@ -198,10 +187,12 @@ if __name__ == "__main__":
         template = "  ".join(meta_template).format(**max_lengths)
         fake_log = logs[0].copy()
         fake_log["subject"] = ""
-        body_template = " " * len(template.format(**fake_log)) + " > {}"
+        body_template = " " * len(template.format(**fake_log)) + " {} {}"
 
         for log in logs:
             print(template.format(**log))
             if len(log["body"]) > 2:
-                for line in body_wrapper.wrap(log["body"]):
-                    print(body_template.format(line.replace("  ", " ")))
+                for section in log["body"].split("* "):
+                    for idx, line in enumerate(body_wrapper.wrap(section)):
+                        s = "*" if idx == 0 else " "
+                        print(body_template.format(s, line.replace("  ", " ", 500)))
