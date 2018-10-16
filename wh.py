@@ -185,12 +185,17 @@ if __name__ == "__main__":
             # only print user if user is not specified
             del meta_template[1]
         template = "  ".join(meta_template).format(**max_lengths)
-        fake_log = logs[0].copy()
-        fake_log["subject"] = ""
-        body_template = " " * len(template.format(**fake_log)) + " {} {}"
+        empty_log = {key: "" for key in logs[0]}
+        body_template = " " * len(template.format(**empty_log)) + " {} {}"
 
         for log in logs:
-            print(template.format(**log))
+            for idx, line in enumerate(subject_wrapper.wrap(log["subject"])):
+                if idx == 0:
+                    log["subject"] = line
+                    print(template.format(**log))
+                else:
+                    empty_log["subject"] = line
+                    print(template.format(**empty_log))
             if len(log["body"]) > 2:
                 for section in log["body"].split("* "):
                     for idx, line in enumerate(body_wrapper.wrap(section)):
