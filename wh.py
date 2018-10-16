@@ -1,7 +1,7 @@
 import subprocess
 import re
 import datetime
-from collections import OrderedDict
+from collections import defaultdict
 import os
 import textwrap
 import yaml
@@ -31,10 +31,20 @@ parser.add_argument(
     "config",
     nargs="?",
     action="store",
-    default=None,
+    default=DEFAULT_CONFIG,
     help="YAML file with configuration settings.",
 )
-parser.add_argument("-u", "--user", dest="user", action="store", help="User to search.")
+parser.add_argument(
+    "-u", "--user", dest="user", action="store", help="User to search.", default=None
+)
+parser.add_argument(
+    "-w",
+    "--width",
+    dest="width",
+    action="store",
+    help="Line wrap width of the subject and body of the logs.",
+    default=60,
+)
 
 # ======================================================================================
 # FUNCTIONS
@@ -43,8 +53,8 @@ parser.add_argument("-u", "--user", dest="user", action="store", help="User to s
 
 def in_folder(fn):
     """
-    Decorates function so that it operates with the working directory set as the first
-    argument to the function.
+    Decorates function so that it runs in the working directory specified by the
+    first argument passed to the function.
 
     :param fn: The function to wrap.
     :returns: The wrapped function.
@@ -64,7 +74,7 @@ def in_folder(fn):
 @in_folder
 def get_repo_logs(repo_path, user=None, n_months=3, name=""):
 
-    pretty_keys = ["date", "author", "desc", "subject", "body"]
+    pretty_keys = ["date", "user", "desc", "subject", "body"]
     pretty_format = SEP2.join(["%ad", "%an", "%D", "%s", "%b"]) + SEP1
 
     args = [
@@ -110,6 +120,14 @@ def get_repo_name(repo_path):
     return out.replace(".git", "").strip()
 
 
+def get_arg(name, args, config):
+    return (
+        config[name]
+        if name in config and getattr(args, name) == parser.get_default(name)
+        else getattr(args, name)
+    )
+
+
 # ======================================================================================
 # MAIN
 # ======================================================================================
@@ -120,7 +138,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # use the config file to get the list of repos
-    config_file = args.config if args.config else DEFAULT_CONFIG
+    config_file = args.config
     with open(config_file, "r") as f:
         config = yaml.load(f)
     try:
@@ -128,15 +146,15 @@ if __name__ == "__main__":
     except KeyError:
         raise ValueError("Configuration requires an entry for 'repos'.")
 
-    # command line user overrides what is set
-    user = args.user if args.user else config["user"]
+    # command line overrides whatever's in config.yaml, though argparser stores defaults
+    user = get_arg("user", args, config)
+    width = int(get_arg("width", args, config))
 
-    subject_wrapper = textwrap.TextWrapper(width=60, fix_sentence_endings=True)
-    body_wrapper = textwrap.TextWrapper(
-        width=subject_wrapper.width - 3, fix_sentence_endings=True
-    )
+    subject_wrapper = textwrap.TextWrapper(width=width, fix_sentence_endings=True)
+    body_wrapper = textwrap.TextWrapper(width=width - 3, fix_sentence_endings=True)
 
     logs = []
+    max_lengths = defaultdict(int)
     for repo in repo_list:
         repo_dir = os.path.expanduser(repo)
         name = get_repo_name(repo_dir)
@@ -147,6 +165,8 @@ if __name__ == "__main__":
         ]
         for log in new_logs:
             log["name"] = name
+            for key, val in log.items():
+                max_lengths[key] = max(max_lengths[key], len(val))
             log["body"] = (
                 log["body"]
                 .replace(".\r\n\r\n", ".", 500)
@@ -165,8 +185,23 @@ if __name__ == "__main__":
         key=lambda x: datetime.datetime.strptime(x["date"], r"%Y-%m-%d"), reverse=False
     )
 
-    for log in logs:
-        print("{date:<12} {name:<16} {subject}".format(**log))
-        if len(log["body"]) > 2:
-            for line in body_wrapper.wrap(log["body"]):
-                print("{:<32}> {}".format("", line.replace("  ", " ")))
+    if len(logs) > 0:
+        meta_template = [
+            "{{date:<{date}}}",
+            "{{user:<{user}}}",
+            "{{name:<{name}}}",
+            "{{subject}}",
+        ]
+        if user:
+            # only print user if user is not specified
+            del meta_template[1]
+        template = "  ".join(meta_template).format(**max_lengths)
+        fake_log = logs[0].copy()
+        fake_log["subject"] = ""
+        body_template = " " * len(template.format(**fake_log)) + " > {}"
+
+        for log in logs:
+            print(template.format(**log))
+            if len(log["body"]) > 2:
+                for line in body_wrapper.wrap(log["body"]):
+                    print(body_template.format(line.replace("  ", " ")))
