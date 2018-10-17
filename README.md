@@ -1,6 +1,6 @@
 # What Happened
 
-Merges logs of multiple git repositories and sorts by date to figure out what you did in the past while.
+Merges logs of multiple git repositories and sorts by date to figure out what happened in the past while accross your projects.
 
 ## Usage
 
