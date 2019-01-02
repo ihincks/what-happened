@@ -16,7 +16,9 @@ import dateutil.parser
 # ======================================================================================
 
 THIS_FOLDER = os.path.dirname(os.path.abspath(__file__))
+THIS_FOLDER = "/home/ihincks/scripts/what-happened/"
 DEFAULT_CONFIG = os.path.join(THIS_FOLDER, "config.yaml")
+DEFAULT_SINCE = "2.months.ago"
 GIT_TIME_FORMATTER = "%a %b %d %H:%M:%S %Y"
 SEP1 = ":AUXOouLEU9e387:"
 SEP2 = ":XDoH4XS3OETHHU:"
@@ -75,7 +77,7 @@ parser.add_argument(
         'can handle, like "January 12, 2017", or a valid git --since argument, '
         "like 2.months.ago (which is the default value)."
     ),
-    default="2.months.ago",
+    default=DEFAULT_SINCE,
 )
 parser.add_argument(
     "-b",
@@ -83,6 +85,14 @@ parser.add_argument(
     dest="before",
     action="store",
     help="Specifier for the last log to report, see --since for formats",
+    default=None,
+)
+parser.add_argument(
+    "-o",
+    "--on",
+    dest="on",
+    action="store",
+    help="A specific day. Cannot be used with before or after.",
     default=None,
 )
 
@@ -220,6 +230,14 @@ if __name__ == "__main__":
     date_format = get_arg("date_format", args, config)
     since = get_arg("since", args, config)
     before = get_arg("before", args, config)
+    on = get_arg("on", args, config)
+
+    if on is not None:
+        if before is not None or since != DEFAULT_SINCE:
+            print("--on cannot be used in conjunction with --since or --before.")
+        since = on
+        before = dateutil.parser.parse(make_git_date(on)) + datetime.timedelta(days=1)
+        before = before.isoformat()
 
     # go and collect the logs for all repos
     logs = []

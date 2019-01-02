@@ -36,7 +36,7 @@ which will print commit logs of all specified repos, ordered by commit date:
 2018-10-16  Ian Hincks  what-happened  renamed file
 ```
 
-If `config.yaml` is located in a different folder than `whathappened`, specify its location with 
+If `config.yaml` is located in a different folder than `whathappened`, specify its location with
 ```bash
 whathappened other/location/config.yaml
 ```
@@ -50,7 +50,7 @@ For instance, we can control line wrapping with
 whathappened --width 60
 ```
 
-or reverse the order with 
+or reverse the order with
 
 ```bash
 whathappened --reverse
@@ -66,6 +66,12 @@ We can specify a date range with `--before` and `--since`:
 
 ```bash
 whathappened --before 12.hours.ago --since "July 13, 2018"
+```
+
+Or some particular day with `--on`:
+
+```bash
+whathappened --on "July 13, 2018"
 ```
 
 ## YAML config file arguments
