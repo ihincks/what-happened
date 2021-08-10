@@ -217,7 +217,7 @@ if __name__ == "__main__":
     # use the config file to get the list of repos
     config_file = args.config
     with open(config_file, "r") as f:
-        config = yaml.load(f)
+        config = yaml.load(f, Loader=yaml.SafeLoader)
     try:
         repo_list = config["repos"]
     except KeyError:
@@ -259,7 +259,7 @@ if __name__ == "__main__":
             log["ts"] = str_to_ms(log["date"])
             log["date"] = format_date(log["date"], date_format)
             for key, val in log.items():
-                if key is not "ts":
+                if key != "ts":
                     max_lengths[key] = max(max_lengths[key], len(val))
         logs += new_logs
 
